@@ -178,7 +178,7 @@ This does not mean either paper is fraudulent. But it is a good reason to read s
 | Implication | Scale model size much faster than data | Scale model size and data equally |
 | Result | GPT-3, Gopher, Megatron | Chinchilla (70B beats 280B) |
 | Key limitation | Non-embedding params only; small-scale analysis | Extrapolated from <10B to 280B+ param regime |
-| Reconciliation | — | Kaplan bias traced to parameter counting + small-scale analysis (Pearce et al. 2024) |
+| Reconciliation | — | Kaplan bias traced to parameter counting + small-scale analysis (Pearce & Song 2024) |
 
 ---
 
@@ -187,6 +187,7 @@ This does not mean either paper is fraudulent. But it is a good reason to read s
 - Hoffmann et al. (2022) — Training Compute-Optimal Large Language Models. [arxiv:2203.15556](https://arxiv.org/abs/2203.15556)
 - Kaplan et al. (2020) — Scaling Laws for Neural Language Models. [arxiv:2001.08361](https://arxiv.org/abs/2001.08361)
 - Besiroglu et al. (2024) — Chinchilla Scaling: A Replication Attempt. [arxiv:2404.10102](https://arxiv.org/abs/2404.10102)
-- Pearce & Wu (2024) — Reconciling Kaplan and Chinchilla Scaling Laws. [arxiv:2406.12907](https://arxiv.org/abs/2406.12907)
+- Pearce & Song (2024) — Reconciling Kaplan and Chinchilla Scaling Laws. [arxiv:2406.12907](https://arxiv.org/abs/2406.12907)
+- Porian et al. (2024) — Resolving Discrepancies in Compute-Optimal Scaling of Language Models. [arxiv:2406.19146](https://arxiv.org/abs/2406.19146)
 - Muennighoff et al. (2023) — Scaling Data-Constrained Language Models (multi-epoch regime)
 - Touvron et al. (2023) — LLaMA: Open and Efficient Foundation Language Models (inference-optimal overtraining)
