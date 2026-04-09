@@ -22,16 +22,18 @@ Extraction pipeline
 
 4. Match each marker's fill RGB to the nearest colorbar pixel row.
 
-5. Recalibrate the colorbar-derived loss values using the 62 points that
-   appear in BOTH Figure 4 left and right (exact loss values are known for
-   those from the right-figure extraction). Fit: loss = 1.014 × raw − 0.073.
-   Residual std after correction: 0.026 loss units.
+5. Recalibrate the colorbar-derived loss values against the 62 points that
+   appear in BOTH Figure 4 left and right. Exact losses for those points are
+   read from right_csv (output of extract_fig4_right.py). Matching is by
+   nearest-neighbour in (log10 C, log10 N) space; the linear fit
+   `loss_cal = a * loss_raw + b` is computed at runtime.
 
-6. Apply a +0.141 log₁₀ C-axis correction: the left subplot's x-axis labels
-   are positioned ~4 px left of their tick marks. At 32.5 px/decade this is
-   a 0.141 log₁₀ offset (factor 1.384×). All compute values are divided by
-   10^0.141 to align with Epoch AI's independent extraction (max residual
-   after correction: 0.011 log₁₀ for every point).
+6. Apply a -0.141 log₁₀ C-axis correction (i.e. divide every compute value
+   by 10^0.141 ≈ 1.384). The raw calibration reads compute as too high
+   because the left subplot's x-axis tick labels are drawn ~4 px left of
+   their actual tick marks — at 32.5 px/decade that's a 0.141 log₁₀ offset.
+   After this correction, every point agrees with Epoch AI's independent
+   extraction to within 0.011 log₁₀.
 
 Output: chinchilla_fig4_left.csv
     compute_flops       - training compute C (FLOPs)
@@ -56,24 +58,22 @@ import math
 import csv
 import numpy as np
 import fitz  # PyMuPDF
-from pathlib import Path
 
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 PDF_PATH        = "2203_15556v1.pdf"
 PAGE_INDEX      = 6
-RIGHT_CSV       = "chinchilla_fig4_right.csv"   # for recalibration
+RIGHT_CSV       = "chinchilla_isoflopslices_fig4_right.csv"   # for recalibration
 OUTPUT_CSV      = "chinchilla_fig4_left.csv"
 
 # C-axis calibration offset (see step 6 in docstring above)
-LOG10_C_CORRECTION = -0.141          # subtract from log10(C) → multiply C by 10^-0.141
+LOG10_C_CORRECTION = -0.141          # add to log10(C) → C_corrected = C_raw * 10^-0.141
 C_CORRECTION_FACTOR = 10 ** LOG10_C_CORRECTION   # ≈ 0.7227
 
-# Recalibration for colorbar-derived loss (step 5)
-# loss_cal = RECAL_A * loss_raw + RECAL_B
-RECAL_A = 1.01412
-RECAL_B = -0.07327
+# Tolerance (log₁₀ units, max-coord) for matching left-panel points to their
+# right-panel counterparts when fitting the colorbar recalibration in step 5.
+MATCH_TOL_LOG10 = 0.02
 
 # Matplotlib default blue — this is the legend "Empirical data" dot, not data
 LEGEND_DOT_HEX = "#1f77b4"
@@ -149,6 +149,79 @@ def _hex(fill):
     return "#{:02x}{:02x}{:02x}".format(round(r*255), round(g*255), round(b*255))
 
 
+def _find_colorbar_pixmap(doc, page):
+    """
+    Return a fitz.Pixmap for the colorbar image on the page.
+
+    Identified by being tall-and-narrow (height ≈ CB_H_PX, width < height).
+    This is more robust than asserting exactly one image on the page: if a
+    future PDF re-export inlines an extra image (e.g. a logo) we still pick
+    the right one.
+    """
+    img_list = page.get_images()
+    candidates = []
+    for img_info in img_list:
+        xref = img_info[0]
+        p = fitz.Pixmap(doc, xref)
+        if p.width < p.height and p.height > 100:
+            candidates.append(p)
+    if not candidates:
+        raise RuntimeError(
+            f"Colorbar image not found (scanned {len(img_list)} image(s) on page)"
+        )
+    # Pick the candidate whose height is closest to the expected CB_H_PX.
+    candidates.sort(key=lambda p: abs(p.height - CB_H_PX))
+    return candidates[0]
+
+
+def _fit_recalibration(records, right_csv_path, match_tol_log10=MATCH_TOL_LOG10):
+    """
+    Fit `loss_cal = a * loss_raw + b` using the subset of extracted points
+    that also appear in Figure 4 right (where exact losses are known).
+
+    Matching: for every left-panel record, find the nearest right-panel point
+    in (log10 C, log10 N) space; keep it if the max-coordinate distance is
+    below `match_tol_log10`.
+
+    Returns (a, b, n_matched, residual_std).
+    """
+    right_pts = []
+    with open(right_csv_path, newline="") as f:
+        for row in csv.DictReader(f):
+            right_pts.append((
+                float(row["compute_flops"]),
+                float(row["n_params"]),
+                float(row["loss"]),
+            ))
+
+    if not right_pts:
+        raise RuntimeError(f"Right CSV {right_csv_path!r} is empty")
+
+    right_log = np.array([[math.log10(C), math.log10(N)] for C, N, _ in right_pts])
+    right_loss = np.array([L for _, _, L in right_pts])
+
+    raw_losses, exact_losses = [], []
+    for r in records:
+        q = np.array([math.log10(r["C"]), math.log10(r["N"])])
+        d = np.max(np.abs(right_log - q), axis=1)
+        i = int(np.argmin(d))
+        if d[i] < match_tol_log10:
+            raw_losses.append(r["loss_raw"])
+            exact_losses.append(float(right_loss[i]))
+
+    if len(raw_losses) < 10:
+        raise RuntimeError(
+            f"Only {len(raw_losses)} left↔right matches at tol={match_tol_log10} "
+            f"log₁₀ — cannot fit recalibration reliably"
+        )
+
+    x = np.array(raw_losses)
+    y = np.array(exact_losses)
+    a, b = np.polyfit(x, y, 1)
+    resid = y - (a * x + b)
+    return float(a), float(b), len(raw_losses), float(resid.std())
+
+
 # ── Main extraction ───────────────────────────────────────────────────────────
 
 def extract(pdf_path: str = PDF_PATH,
@@ -160,13 +233,11 @@ def extract(pdf_path: str = PDF_PATH,
     paths = page.get_drawings()
 
     # 1. Build colorbar LUT ────────────────────────────────────────────────────
-    img_list = page.get_images()
-    assert len(img_list) == 1, f"Expected 1 image (colorbar), found {len(img_list)}"
-    pix     = fitz.Pixmap(doc, img_list[0][0])
+    pix     = _find_colorbar_pixmap(doc, page)
     samples = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
 
-    # Use middle column (col=8) for robustness
-    cb_rgb  = samples[:, 8, :3].astype(float)
+    # Use the middle column of the colorbar image (avoids any anti-aliased edge).
+    cb_rgb  = samples[:, pix.width // 2, :3].astype(float)
     cb_loss = np.array([pixel_row_to_loss(r) for r in range(pix.height)])
 
     def match_colorbar(fill_rgb_float):
@@ -198,27 +269,38 @@ def extract(pdf_path: str = PDF_PATH,
 
     print(f"Raw markers found: {len(raw_pts)}")
 
-    # 3. Recalibration using right-figure exact loss ──────────────────────────
-    #    (precomputed; coefficients embedded above as RECAL_A / RECAL_B)
-
-    # 4. Build output rows ─────────────────────────────────────────────────────
-    rows = []
+    # 3. Compute (C, N, D, loss_raw) for every marker ─────────────────────────
+    records = []
     for pt in raw_pts:
-        C_raw   = x_to_C_raw(pt["cx"])
-        C       = C_raw * C_CORRECTION_FACTOR   # apply axis correction
-        N       = y_to_N(pt["cy"])
-        D       = C / (6.0 * N)
+        C = x_to_C_raw(pt["cx"]) * C_CORRECTION_FACTOR
+        N = y_to_N(pt["cy"])
+        D = C / (6.0 * N)
         loss_raw, rgb_dist = match_colorbar(pt["fill"])
-        loss_cal = RECAL_A * loss_raw + RECAL_B
+        records.append({
+            "C": C, "N": N, "D": D,
+            "hex": pt["hex"],
+            "loss_raw": loss_raw,
+            "rgb_dist": rgb_dist,
+        })
 
+    # 4. Fit recalibration against the right-figure exact losses ──────────────
+    recal_a, recal_b, n_match, resid_std = _fit_recalibration(records, right_csv)
+    print(f"Recalibration fit from {n_match} left↔right matches:")
+    print(f"  loss_cal = {recal_a:.5f} * loss_raw + {recal_b:.5f}")
+    print(f"  residual std = {resid_std:.4f}")
+
+    # 5. Apply recalibration and build output rows ────────────────────────────
+    rows = []
+    for r in records:
+        loss_cal = recal_a * r["loss_raw"] + recal_b
         rows.append({
-            "compute_flops":      round(C, 2),
-            "n_params":           round(N),
-            "n_tokens":           round(D),
-            "hex_color":          pt["hex"],
-            "loss_colorbar_raw":  round(loss_raw, 5),
+            "compute_flops":      round(r["C"], 2),
+            "n_params":           round(r["N"]),
+            "n_tokens":           round(r["D"]),
+            "hex_color":          r["hex"],
+            "loss_colorbar_raw":  round(r["loss_raw"], 5),
             "loss_colorbar_cal":  round(loss_cal, 5),
-            "colorbar_rgb_dist":  round(rgb_dist, 3),
+            "colorbar_rgb_dist":  round(r["rgb_dist"], 3),
         })
 
     # Sort by compute then model size

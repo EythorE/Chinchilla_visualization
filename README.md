@@ -52,7 +52,7 @@ The left panel shows every training run as a dot coloured continuously by loss. 
 2. **Axis calibration** — x-axis (Compute, log scale) and y-axis (Model Size, log scale) are calibrated from tick-label positions. A systematic +0.141 log₁₀ offset in the compute axis was corrected; it arose because axis tick labels sit ~4 px left of their actual tick marks, and at 32.5 px/decade this shifts inferred FLOPs by a factor of 1.38×
 3. **Colorbar extraction** — the figure contains an embedded 17×342 px RGB image that is the colorbar. PyMuPDF extracts this as raw pixel data. Each of the 342 pixel rows maps to a loss value via the same log-loss calibration used for the right subplot (the colorbar spans the same y range as both plots)
 4. **Colour matching** — each marker's fill RGB is matched to the nearest colorbar pixel row by Euclidean distance in RGB space (median distance: 0.46/255 — essentially perfect)
-5. **Recalibration** — the raw colorbar mapping had a +0.036 loss bias. We corrected it using the 62 points present in both figures (where exact loss is known from the right panel). Final fit: `loss = 1.014 × raw − 0.073`, residual std = 0.026
+5. **Recalibration** — the raw colorbar mapping has a small loss bias (about +0.036 on our data). The script fits `loss_cal = a × loss_raw + b` at runtime by matching every left-panel point to its nearest right-panel point in (log₁₀ C, log₁₀ N) space (tolerance 0.02 log₁₀) and regressing against the exact losses read from the right-panel CSV. Against the current `2203_15556v1.pdf` this reproduces a fit close to `loss ≈ 1.014 × raw − 0.073` (residual std ≈ 0.026) from ~62 matched points
 
 ### Epoch AI replication
 
@@ -127,10 +127,10 @@ pip install pymupdf numpy
 python extract_fig4_right.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv
 
 # Extract Figure 4 left (empirical scatter — colorbar-inferred loss)
-python extract_fig4_left.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv chinchilla_fig4_left_with_loss.csv
+python extract_fig4_left.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv chinchilla_fig4_left.csv
 ```
 
-The left-figure script accepts the right-figure CSV as a second argument so that the exact loss values from the right panel can be used to recalibrate the colorbar mapping (removing the small bias inherent in colour→loss matching). Note that the currently committed script uses precomputed recalibration coefficients (`RECAL_A`, `RECAL_B`) rather than recomputing them from the right CSV at runtime — see the bug report for details.
+The left-figure script takes the right-figure CSV as a second argument because it uses those exact loss values to fit the colorbar→loss recalibration at runtime. The fit is a linear regression through the points that appear in both figures (matched by nearest neighbour in (log₁₀ C, log₁₀ N) space with a 0.02 log₁₀ tolerance); the fitted coefficients are printed to stdout when the script runs.
 
 ---
 

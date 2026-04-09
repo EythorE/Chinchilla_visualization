@@ -31,7 +31,7 @@ import fitz  # PyMuPDF
 PDF_PATH   = "2203_15556v1.pdf"
 PAGE_INDEX = 6   # 0-indexed; Figure 4 is on page 7
 
-OUTPUT_CSV = "chinchilla_fig4_right.csv"
+OUTPUT_CSV = "chinchilla_isoflopslices_fig4_right.csv"
 
 
 # ── Axis calibration (derived from PDF grid-line positions) ──────────────────
