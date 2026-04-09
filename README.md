@@ -91,6 +91,23 @@ The three terms capture:
 
 Toggling "Parametric model L̂(N,D)" in the explorer draws smooth isoFLOP curves from this formula, overlaid on the raw scatter — letting you see where the fit over- or under-predicts.
 
+### The Gopher and Chinchilla diamonds are model predictions, not measurements
+
+This is easy to miss and worth calling out clearly.
+
+The two diamond markers in the explorer — orange for Gopher (280B), cyan for Chinchilla (70B) — are placed on the loss axis at `L̂ ≈ 1.993` and `L̂ ≈ 1.937` respectively. **Those numbers are not measurements.** Hoffmann et al. (2022) never report a final training loss for either Gopher or Chinchilla anywhere in the paper. The numbers shown are produced by evaluating the paper's own Approach 3 parametric fit `L̂(N,D) = E + A/Nᵅ + B/Dᵇ` (with E=1.69, A=406.4, B=410.7, α=0.34, β=0.28) at each model's (N, D):
+
+```
+L̂(280B, 300B)   → 1.9933   # Gopher — parametric prediction, NOT a measurement
+L̂( 70B, 1.4T)   → 1.9366   # Chinchilla — parametric prediction, NOT a measurement
+```
+
+Both of those evaluations are **extrapolations** well beyond the range the fit was trained on (experimental runs of ≤ ~16B params). They are the paper's own self-consistent prediction about where Gopher and Chinchilla *should* sit on the loss surface it fit, not an observation of where they actually sit.
+
+The closest thing to a public head-to-head loss comparison in the paper is **Wikitext103 perplexity** (Table 5): Chinchilla 7.16 vs Gopher 7.75 — directionally consistent with `L̂(N,D)` predicting Chinchilla's loss is lower, but on a different dataset and tokenizer from MassiveText, so it can't be plugged into the `L̂` axis of this explorer. See [`chinchilla_guide.md §4.6`](chinchilla_guide.md) for the longer discussion of why the paper never reports these two numbers despite building its entire thesis on a loss-prediction framework.
+
+The info-panel card and hover tooltip for the Gopher/Chinchilla diamonds both label these values as "L̂(N,D) — model prediction" so the distinction is explicit in the UI. The two constants `MOD.Gopher.loss` and `MOD.Chinchilla.loss` in `index.html` are hardcoded outputs of evaluating the Approach 3 formula at each model's (N, D); see the comment block immediately above the `const MOD = ...` line.
+
 ### The efficient frontier
 
 The explorer also shows two versions of the compute-optimal ridge (the locus of optimal (N, D) pairs):

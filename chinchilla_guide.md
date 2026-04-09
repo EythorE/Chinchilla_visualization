@@ -129,6 +129,37 @@ This is the empirical validation. Chinchilla (70B, 1.4T tokens) is compared to G
 | **Chinchilla** | **70B** | **1.4T** | **~5 × 10²³** |
 | Megatron-Turing NLG | 530B | 270B | ~8 × 10²³ |
 
+### 4.6 The Missing Number — Why Isn't Gopher or Chinchilla's Final Training Loss Reported?
+
+There is a strange hole in the paper that is worth staring at for a moment.
+
+The entire framework of Chinchilla is about predicting **training cross-entropy loss** as a function of (N, D). Figures 2, 3, and 4 are all about loss. Approach 3 fits a closed-form loss surface `L̂(N,D) = E + A/Nᵅ + B/Dᵇ` to hundreds of small training runs. The conclusion — "Gopher is undertrained, Chinchilla is compute-optimal" — is, at its heart, a statement about where Gopher and Chinchilla sit on that loss surface.
+
+And yet: **nowhere in the paper is a final training loss reported for Gopher or for Chinchilla itself.** Not in the abstract, not in Figure 1, not in Table 3, not in the appendix. The two headline models of the paper have no published number you can compare against `L̂(280B, 300B)` or `L̂(70B, 1.4T)`.
+
+This matters because checking the fit at Gopher/Chinchilla scale would be exactly the kind of out-of-distribution validation the rest of the paper cannot provide. The fit was trained on runs up to ~16B params. Gopher is 17.5× beyond that. If `L̂(280B, 300B)` disagreed with Gopher's measured loss by, say, 5%, Approach 3 would be in serious trouble. If it agreed, it would be the strongest evidence in the whole paper. The reader is not told which.
+
+**What the paper does report as a proxy:**
+
+- **MMLU accuracy** (Table 6): Chinchilla 67.6% vs Gopher 60.0%
+- **Wikitext103 perplexity** (Table 5): Chinchilla **7.16** vs Gopher **7.75** — lower is better, directionally consistent with `L̂(N,D)` predicting Chinchilla's loss is lower
+- **The Pile bits-per-byte** (Table 7), LAMBADA, BIG-bench, reading comprehension, etc.
+
+These are downstream evaluation metrics on standard external benchmarks, not final training loss on MassiveText. They establish that **Chinchilla beats Gopher** — which is the paper's headline empirical result — but they do not let you verify the scaling law's quantitative predictions at Gopher scale. The units are wrong: Wikitext103 perplexity is on a different dataset with a different tokenizer, so you cannot put 7.16 on the same y-axis as the isoFLOP curves.
+
+**Why might the paper omit this?** Several possible reasons, from most to least charitable:
+
+1. **Absolute losses aren't cross-comparable.** Training cross-entropy is measured against an internal MassiveText validation set with DeepMind's specific tokenizer. A number like "1.94 nats/token" is meaningless to outside researchers and not directly comparable to GPT-3, Megatron, etc. Downstream metrics are the lingua franca of LLM evaluation, so that's what gets published. This is the standard defense.
+2. **The paper's claim is relative, not absolute.** The thesis is about *optimal allocation*, not about predicting the exact loss value. Showing Chinchilla beats Gopher on downstream metrics is sufficient to make the point without depending on absolute loss numbers at all.
+3. **Downstream metrics are what users care about.** MMLU and BIG-bench mean something to people choosing a model; validation loss does not.
+4. **Less charitably: if the numbers had disagreed noticeably with `L̂(N,D)`, it would have undercut Approach 3.** The paper has strong incentives to present all three approaches as mutually reinforcing, and reporting a single out-of-range data point that disagrees with the parametric fit would have complicated that story. Besiroglu et al. (2024) later found that Approach 3's confidence intervals are implausibly narrow and that the parametric form fits the digitized data poorly, so this concern is not purely hypothetical.
+
+Whichever combination of reasons is correct, the practical consequence for anyone using this visualisation (or any other reproduction of the paper) is the same:
+
+> **The Gopher and Chinchilla diamonds cannot be placed on the loss axis from data in the paper. Their y-position is a model prediction, not an observation.** Any number you see quoted for "Chinchilla's final loss" (including the ≈1.937 in this explorer) is `L̂(N,D)` evaluated at Chinchilla's (N, D), extrapolated beyond the fitted range. It is not ground truth. Treat it as the paper's own self-consistent claim about where those two models *should* sit on the loss surface it fit, not as a measurement of where they actually sit.
+
+This is a good example of the broader pattern the guide keeps returning to: the isoFLOP curves and the head-to-head Chinchilla-vs-Gopher benchmark comparison are the empirically robust parts of the paper. The parametric loss surface, and any point on it beyond ~16B params, is an extrapolation that the paper notably declines to verify against its own flagship models.
+
 ---
 
 ## 5. What the Paper Actually Proved vs. Assumed
