@@ -134,17 +134,6 @@ The left-figure script takes the right-figure CSV as a second argument because i
 
 ---
 
-## Publishing to GitHub Pages
-
-The explorer is a single self-contained HTML file with all data embedded and Plotly loaded from CDN — no build step, no server required.
-
-1. Fork or clone this repo
-2. The entry point is already named `index.html`, so no renaming is required
-3. Go to **Settings → Pages → Source → Deploy from branch → `main` / `(root)`**
-4. Your explorer is live at `https://<username>.github.io/<reponame>/`
-
----
-
 ## Key takeaways from the visualisation
 
 **Set X = Compute, Y = Model Size, Z = Loss** and rotate until you're looking at the XY plane from slightly above. You will see:
