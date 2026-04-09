@@ -5,9 +5,7 @@ An interactive 3D visualisation of the scaling law data from the landmark paper:
 > **Training Compute-Optimal Large Language Models**  
 > Hoffmann, Borgeaud, Mensch et al. (DeepMind, 2022) — [arXiv:2203.15556](https://arxiv.org/abs/2203.15556)
 
-**[Live demo →](https://yourusername.github.io/chinchilla-explorer)** *(rename after publishing)*
-
-![Preview of the 3D explorer](preview.png)
+**[Live demo →](https://eythore.github.io/Chinchilla_visualization/)**
 
 ---
 
@@ -32,8 +30,8 @@ This explorer makes that argument tangible and rotatable. You can:
 
 | File | Points | Source | Loss accuracy |
 |---|---|---|---|
-| `chinchilla_fig4_right.csv` | 114 | Extracted from Fig 4 right (PDF vectors) | **Exact** — read from isoFLOP labels |
-| `chinchilla_fig4_left.csv` | 245 | Extracted from Fig 4 left (PDF vectors + colorbar) | ~0.021 MAE |
+| `chinchilla_isoflopslices_fig4_right.csv` | 114 | Extracted from Fig 4 right (PDF vectors) | **Exact** — read from isoFLOP labels |
+| `chinchilla_fig4_left_with_loss.csv` | 245 | Extracted from Fig 4 left (PDF vectors + colorbar) | ~0.021 MAE |
 | `chinchilla_svg_extracted_data.csv` | 245 | [Epoch AI replication study](https://epochai.org/blog/chinchilla-replication) | ~0.013 MAE |
 
 ### Figure 4 right — isoFLOP slices (exact)
@@ -54,7 +52,7 @@ The left panel shows every training run as a dot coloured continuously by loss. 
 2. **Axis calibration** — x-axis (Compute, log scale) and y-axis (Model Size, log scale) are calibrated from tick-label positions. A systematic +0.141 log₁₀ offset in the compute axis was corrected; it arose because axis tick labels sit ~4 px left of their actual tick marks, and at 32.5 px/decade this shifts inferred FLOPs by a factor of 1.38×
 3. **Colorbar extraction** — the figure contains an embedded 17×342 px RGB image that is the colorbar. PyMuPDF extracts this as raw pixel data. Each of the 342 pixel rows maps to a loss value via the same log-loss calibration used for the right subplot (the colorbar spans the same y range as both plots)
 4. **Colour matching** — each marker's fill RGB is matched to the nearest colorbar pixel row by Euclidean distance in RGB space (median distance: 0.46/255 — essentially perfect)
-5. **Recalibration** — the raw colorbar mapping had a +0.036 loss bias. We corrected it using the 62 points present in both figures (where exact loss is known from the right panel). Final fit: `loss = 1.014 × raw − 0.073`, residual std = 0.026
+5. **Recalibration** — the raw colorbar mapping has a small loss bias (about +0.036 on our data). The script fits `loss_cal = a × loss_raw + b` at runtime by matching every left-panel point to its nearest right-panel point in (log₁₀ C, log₁₀ N) space (tolerance 0.02 log₁₀) and regressing against the exact losses read from the right-panel CSV. Against the current `2203_15556v1.pdf` this reproduces a fit close to `loss ≈ 1.014 × raw − 0.073` (residual std ≈ 0.026) from ~62 matched points
 
 ### Epoch AI replication
 
@@ -105,13 +103,14 @@ The explorer also shows two versions of the compute-optimal ridge (the locus of 
 ## Files
 
 ```
-chinchilla-explorer/
-├── index.html                          ← The self-contained interactive explorer
-├── extract_fig4_right.py               ← Extracts Fig 4 right (isoFLOP slices)
-├── extract_fig4_left.py                ← Extracts Fig 4 left (empirical scatter + colorbar)
-├── chinchilla_fig4_right.csv           ← 114 pts, exact loss, 9 isoFLOP curves
-├── chinchilla_fig4_left.csv            ← 245 pts, colorbar-inferred loss
-├── chinchilla_svg_extracted_data.csv   ← Epoch AI independent extraction (245 pts)
+Chinchilla_visualization/
+├── index.html                                  ← The self-contained interactive explorer
+├── extract_fig4_right.py                       ← Extracts Fig 4 right (isoFLOP slices)
+├── extract_fig4_left.py                        ← Extracts Fig 4 left (empirical scatter + colorbar)
+├── chinchilla_isoflopslices_fig4_right.csv     ← 114 pts, exact loss, 9 isoFLOP curves
+├── chinchilla_fig4_left_with_loss.csv          ← 245 pts, colorbar-inferred loss
+├── chinchilla_svg_extracted_data.csv           ← Epoch AI independent extraction (245 pts)
+├── chinchilla_guide.md                         ← Background notes on the Chinchilla paper
 └── README.md
 ```
 
@@ -125,13 +124,13 @@ chinchilla-explorer/
 pip install pymupdf numpy
 
 # Extract Figure 4 right (isoFLOP slices — exact loss)
-python extract_fig4_right.py 2203_15556v1.pdf chinchilla_fig4_right.csv
+python extract_fig4_right.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv
 
 # Extract Figure 4 left (empirical scatter — colorbar-inferred loss)
-python extract_fig4_left.py 2203_15556v1.pdf chinchilla_fig4_right.csv chinchilla_fig4_left.csv
+python extract_fig4_left.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv chinchilla_fig4_left.csv
 ```
 
-The left-figure script takes the right-figure CSV as a second argument because it uses those exact loss values to recalibrate the colorbar mapping.
+The left-figure script takes the right-figure CSV as a second argument because it uses those exact loss values to fit the colorbar→loss recalibration at runtime. The fit is a linear regression through the points that appear in both figures (matched by nearest neighbour in (log₁₀ C, log₁₀ N) space with a 0.02 log₁₀ tolerance); the fitted coefficients are printed to stdout when the script runs.
 
 ---
 
@@ -139,10 +138,10 @@ The left-figure script takes the right-figure CSV as a second argument because i
 
 The explorer is a single self-contained HTML file with all data embedded and Plotly loaded from CDN — no build step, no server required.
 
-1. Fork or create a new repo
-2. Rename `index.html` (already named correctly if you clone this repo)
+1. Fork or clone this repo
+2. The entry point is already named `index.html`, so no renaming is required
 3. Go to **Settings → Pages → Source → Deploy from branch → `main` / `(root)`**
-4. Your explorer is live at `https://yourusername.github.io/reponame`
+4. Your explorer is live at `https://<username>.github.io/<reponame>/`
 
 ---
 
