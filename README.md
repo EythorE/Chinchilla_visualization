@@ -5,9 +5,7 @@ An interactive 3D visualisation of the scaling law data from the landmark paper:
 > **Training Compute-Optimal Large Language Models**  
 > Hoffmann, Borgeaud, Mensch et al. (DeepMind, 2022) — [arXiv:2203.15556](https://arxiv.org/abs/2203.15556)
 
-**[Live demo →](https://yourusername.github.io/chinchilla-explorer)** *(rename after publishing)*
-
-![Preview of the 3D explorer](preview.png)
+**[Live demo →](https://eythore.github.io/Chinchilla_visualization/)**
 
 ---
 
@@ -32,8 +30,8 @@ This explorer makes that argument tangible and rotatable. You can:
 
 | File | Points | Source | Loss accuracy |
 |---|---|---|---|
-| `chinchilla_fig4_right.csv` | 114 | Extracted from Fig 4 right (PDF vectors) | **Exact** — read from isoFLOP labels |
-| `chinchilla_fig4_left.csv` | 245 | Extracted from Fig 4 left (PDF vectors + colorbar) | ~0.021 MAE |
+| `chinchilla_isoflopslices_fig4_right.csv` | 114 | Extracted from Fig 4 right (PDF vectors) | **Exact** — read from isoFLOP labels |
+| `chinchilla_fig4_left_with_loss.csv` | 245 | Extracted from Fig 4 left (PDF vectors + colorbar) | ~0.021 MAE |
 | `chinchilla_svg_extracted_data.csv` | 245 | [Epoch AI replication study](https://epochai.org/blog/chinchilla-replication) | ~0.013 MAE |
 
 ### Figure 4 right — isoFLOP slices (exact)
@@ -105,13 +103,14 @@ The explorer also shows two versions of the compute-optimal ridge (the locus of 
 ## Files
 
 ```
-chinchilla-explorer/
-├── index.html                          ← The self-contained interactive explorer
-├── extract_fig4_right.py               ← Extracts Fig 4 right (isoFLOP slices)
-├── extract_fig4_left.py                ← Extracts Fig 4 left (empirical scatter + colorbar)
-├── chinchilla_fig4_right.csv           ← 114 pts, exact loss, 9 isoFLOP curves
-├── chinchilla_fig4_left.csv            ← 245 pts, colorbar-inferred loss
-├── chinchilla_svg_extracted_data.csv   ← Epoch AI independent extraction (245 pts)
+Chinchilla_visualization/
+├── index.html                                  ← The self-contained interactive explorer
+├── extract_fig4_right.py                       ← Extracts Fig 4 right (isoFLOP slices)
+├── extract_fig4_left.py                        ← Extracts Fig 4 left (empirical scatter + colorbar)
+├── chinchilla_isoflopslices_fig4_right.csv     ← 114 pts, exact loss, 9 isoFLOP curves
+├── chinchilla_fig4_left_with_loss.csv          ← 245 pts, colorbar-inferred loss
+├── chinchilla_svg_extracted_data.csv           ← Epoch AI independent extraction (245 pts)
+├── chinchilla_guide.md                         ← Background notes on the Chinchilla paper
 └── README.md
 ```
 
@@ -125,13 +124,13 @@ chinchilla-explorer/
 pip install pymupdf numpy
 
 # Extract Figure 4 right (isoFLOP slices — exact loss)
-python extract_fig4_right.py 2203_15556v1.pdf chinchilla_fig4_right.csv
+python extract_fig4_right.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv
 
 # Extract Figure 4 left (empirical scatter — colorbar-inferred loss)
-python extract_fig4_left.py 2203_15556v1.pdf chinchilla_fig4_right.csv chinchilla_fig4_left.csv
+python extract_fig4_left.py 2203_15556v1.pdf chinchilla_isoflopslices_fig4_right.csv chinchilla_fig4_left_with_loss.csv
 ```
 
-The left-figure script takes the right-figure CSV as a second argument because it uses those exact loss values to recalibrate the colorbar mapping.
+The left-figure script accepts the right-figure CSV as a second argument so that the exact loss values from the right panel can be used to recalibrate the colorbar mapping (removing the small bias inherent in colour→loss matching). Note that the currently committed script uses precomputed recalibration coefficients (`RECAL_A`, `RECAL_B`) rather than recomputing them from the right CSV at runtime — see the bug report for details.
 
 ---
 
@@ -139,10 +138,10 @@ The left-figure script takes the right-figure CSV as a second argument because i
 
 The explorer is a single self-contained HTML file with all data embedded and Plotly loaded from CDN — no build step, no server required.
 
-1. Fork or create a new repo
-2. Rename `index.html` (already named correctly if you clone this repo)
+1. Fork or clone this repo
+2. The entry point is already named `index.html`, so no renaming is required
 3. Go to **Settings → Pages → Source → Deploy from branch → `main` / `(root)`**
-4. Your explorer is live at `https://yourusername.github.io/reponame`
+4. Your explorer is live at `https://<username>.github.io/<reponame>/`
 
 ---
 
